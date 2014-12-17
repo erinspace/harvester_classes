@@ -198,16 +198,24 @@ class OAIHarvester(BaseHarvester):
             'dateCreated': self.get_date_created(result)
         }
 
+        return NormalizedDocument(payload)
 
 
 texas_harvester = OAIHarvester('texas', 'http://digital.library.txstate.edu/oai/')
-
-harvested = texas_harvester.harvest(days_back=15)
-
-normed = texas_harvester.normalize(
-                    raw_doc = harvested[0],
+texas_harvested = texas_harvester.harvest(days_back=15)
+texas_normed = texas_harvester.normalize(
+                    raw_doc = texas_harvested[0],
                     property_list = ['date', 'creator', 'language']
                 )
+
+
+mit_harvester = OAIHarvester('mit', 'http://dspace.mit.edu/oai/')
+mit_harvested = mit_harvester.harvest(days_back=2)
+mit_normed = mit_harvester.normalize(
+                raw_doc = mit_harvested[0],
+                property_list = ['identifier', 'type', 'source', 'language', 'relation','rights']
+            )
+
 
 
 
