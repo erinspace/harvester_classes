@@ -18,13 +18,13 @@ from scrapi.linter.document import RawDocument, NormalizedDocument
 
 class BaseHarvester(object):
 
-    def harvest(self, name, url, days_back=1, **kwargs):
+    def harvest(self, days_back=1):
         pass
 
     def get_records(self, url):
         pass
 
-    def normalize(self, raw_doc, **kwargs):
+    def normalize(self, raw_doc, property_list):
         pass
 
 
@@ -44,6 +44,10 @@ class OAIHarvester(BaseHarvester):
 
     record_encoding = None
 
+    def __init__(self, name, base_url):
+        self.name = name
+        self.base_url = base_url
+
     def copy_to_unicode(self, element):
 
         encoding = self.record_encoding or self.DEFAULT_ENCODING
@@ -53,11 +57,11 @@ class OAIHarvester(BaseHarvester):
         else:
             return unicode(element, encoding=encoding)
 
-    def harvest(self, name, inst_url, days_back):
+    def harvest(self, days_back):
 
         start_date = str(date.today() - timedelta(days_back))
 
-        records_url = inst_url + self.RECORDS_URL
+        records_url = self.base_url + self.RECORDS_URL
         initial_request_url = records_url + \
             self.META_PREFIX_DATE.format(start_date)
 
@@ -69,12 +73,11 @@ class OAIHarvester(BaseHarvester):
             record = etree.tostring(record, encoding=self.record_encoding)
             rawdoc_list.append(RawDocument({
                 'doc': record,
-                'source': name,
+                'source': self.name,
                 'docID': self.copy_to_unicode(doc_id),
                 'filetype': 'xml'
             }))
 
-        import pdb; pdb.set_trace()
         return rawdoc_list
 
     def get_records(self, url, start_date, resump_token=''):
@@ -94,14 +97,14 @@ class OAIHarvester(BaseHarvester):
 
         return records
 
-    def getcontributors(self, result):
+    def get_contributors(self, result):
         ''' this grabs all of the fields marked contributors
         or creators in the OAI namespaces'''
 
         contributors = result.xpath(
-            '//dc:contributor/node()', namespaces=NAMESPACES) or ['']
+            '//dc:contributor/node()', namespaces=self.NAMESPACES) or ['']
         creators = result.xpath(
-            '//dc:creator/node()', namespaces=NAMESPACES) or ['']
+            '//dc:creator/node()', namespaces=self.NAMESPACES) or ['']
 
         all_contributors = contributors + creators
 
@@ -121,27 +124,27 @@ class OAIHarvester(BaseHarvester):
 
         return contributor_list
 
-    def gettags(self, result):
-        tags = result.xpath('//dc:subject/node()', namespaces=NAMESPACES) or []
-        return [copy_to_unicode(tag.lower()) for tag in tags]
+    def get_tags(self, result):
+        tags = result.xpath('//dc:subject/node()', namespaces=self.NAMESPACES)
+        return [self.copy_to_unicode(tag.lower()) for tag in tags]
 
     def get_ids(self, result, doc):
         serviceID = doc.get('docID')
         identifiers = result.xpath(
-            '//dc:identifier/node()', namespaces=NAMESPACES)
+            '//dc:identifier/node()', namespaces=self.NAMESPACES)
         url = ''
         doi = ''
-        for item in identifiers:
-            if 'digital.library.txstate.edu' in item or 'hdl.handle.net' in item:
-                url = item
+        for item in identifiers: 
             if 'doi' in item or 'DOI' in item:
                 doi = item
                 doi = doi.replace('doi:', '')
                 doi = doi.replace('DOI:', '')
                 doi = doi.replace('http://dx.doi.org/', '')
                 doi = doi.strip(' ')
+            if 'http://' in item or 'https://' in item:
+                url = item
 
-        return {'serviceID': serviceID, 'url': copy_to_unicode(url), 'doi': copy_to_unicode(doi)}
+        return {'serviceID': serviceID, 'url': self.copy_to_unicode(url), 'doi': self.copy_to_unicode(doi)}
 
     def get_properties(self, result, property_list):
         ''' kwargs can be all of the properties in your particular
@@ -149,27 +152,65 @@ class OAIHarvester(BaseHarvester):
 
         properties = {}
         for item in property_list:
-            properties.item = (
-                result.xpath('//dc:{}/node()'.format(item), namespaces=NAMESPACES) or [''])[0]
+            prop = (result.xpath('//dc:{}/node()'.format(item), namespaces=self.NAMESPACES) or [''])
+
+            if len(prop) > 1:
+                properties[item] = prop
+            else:
+                properties[item] = prop[0]
 
         return properties
 
     def get_date_created(self, result):
         dates = (
-            result.xpath('//dc:date/node()', namespaces=NAMESPACES) or [''])
-        date = copy_to_unicode(dates[0])
+            result.xpath('//dc:date/node()', namespaces=self.NAMESPACES) or [''])
+        date = self.copy_to_unicode(dates[0])
         return date
 
     def get_date_updated(self, result):
         dateupdated = result.xpath(
-            '//ns0:header/ns0:datestamp/node()', namespaces=NAMESPACES)[0]
+            '//ns0:header/ns0:datestamp/node()', namespaces=self.NAMESPACES)[0]
         date_updated = parse(dateupdated).isoformat()
-        return copy_to_unicode(date_updated)
+        return self.copy_to_unicode(date_updated)
+
+    def get_title(self, result):
+        title = result.xpath('//dc:title/node()', namespaces=self.NAMESPACES)[0]
+        return self.copy_to_unicode(title)
+
+    def get_description(self, result):
+        description = result.xpath('//dc:description/node()', namespaces=self.NAMESPACES)[0]
+        return self.copy_to_unicode(description)
+
+    def normalize(self, raw_doc, property_list):
+        str_result = raw_doc.get('doc')
+        result = etree.XML(str_result)
+
+        # TODO : add series names filtering support
+        payload = {
+            'source': self.name,
+            'title': self.get_title(result),
+            'description': self.get_description(result),
+            'id': self.get_ids(result, raw_doc),
+            'contributors': self.get_contributors(result),
+            'tags': self.get_tags(result),
+            'properties': self.get_properties(result, property_list),
+            'dateUpdated': self.get_date_updated(result),
+            'dateCreated': self.get_date_created(result)
+        }
 
 
-oai_thing = OAIHarvester()
 
-harvested = oai_thing.harvest(
-                    name='texas',
-                    inst_url='http://digital.library.txstate.edu/oai/',
-                    days_back=15)
+texas_harvester = OAIHarvester('texas', 'http://digital.library.txstate.edu/oai/')
+
+harvested = texas_harvester.harvest(days_back=15)
+
+normed = texas_harvester.normalize(
+                    raw_doc = harvested[0],
+                    property_list = ['date', 'creator', 'language']
+                )
+
+
+
+
+
+
