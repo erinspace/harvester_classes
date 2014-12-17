@@ -46,7 +46,7 @@ class OAIHarvester(BaseHarvester):
         return records
 
 
-    def getcontributors(result):
+    def getcontributors(self, result):
         ''' this grabs all of the fields marked contributors
         or creators in the OAI namespaces'''
 
@@ -74,12 +74,12 @@ class OAIHarvester(BaseHarvester):
         return contributor_list
 
 
-    def gettags(result):
+    def gettags(self, result):
         tags = result.xpath('//dc:subject/node()', namespaces=NAMESPACES) or []
         return [copy_to_unicode(tag.lower()) for tag in tags]
 
 
-    def get_ids(result, doc):
+    def get_ids(self, result, doc):
         serviceID = doc.get('docID')
         identifiers = result.xpath('//dc:identifier/node()', namespaces=NAMESPACES)
         url = ''
@@ -97,45 +97,27 @@ class OAIHarvester(BaseHarvester):
         return {'serviceID': serviceID, 'url': copy_to_unicode(url), 'doi': copy_to_unicode(doi)}
 
 
-    def get_properties(result, **kwargs):
+    def get_properties(self, result, property_list):
         ''' kwargs can be all of the properties in your particular
         OAI harvester that does not fit into the standard schema '''
 
-        
+        properties = {}
+        for item in property_list:
+            properties.item = (result.xpath('//dc:{}/node()'.format(item), namespaces=NAMESPACES) or [''])[0]
 
-        result_type = (result.xpath('//dc:type/node()', namespaces=NAMESPACES) or [''])[0]
-        rights = result.xpath('//dc:rights/node()', namespaces=NAMESPACES) or ['']
-        if len(rights) > 1:
-            copyright = ' '.join(rights)
-        else:
-            copyright = rights
-        publisher = (result.xpath('//dc:publisher/node()', namespaces=NAMESPACES) or [''])[0]
-        relation = (result.xpath('//dc:relation/node()', namespaces=NAMESPACES) or [''])[0]
-        language = (result.xpath('//dc:language/node()', namespaces=NAMESPACES) or [''])[0]
-        dates = result.xpath('//dc:date/node()', namespaces=NAMESPACES) or ['']
-        set_spec = result.xpath('ns0:header/ns0:setSpec/node()', namespaces=NAMESPACES)[0]
-        properties = {
-            'type': copy_to_unicode(result_type),
-            'dates': copy_to_unicode(dates),
-            'language': copy_to_unicode(language),
-            'relation': copy_to_unicode(relation),
-            'publisherInfo': {
-                'publisher': copy_to_unicode(publisher),
-            },
-            'permissions': {
-                'copyrightStatement': copy_to_unicode(copyright),
-            }
-        }
         return properties
 
 
-    def get_date_created(result):
+    def get_date_created(self, result):
         dates = (result.xpath('//dc:date/node()', namespaces=NAMESPACES) or [''])
         date = copy_to_unicode(dates[0])
         return date
 
 
-    def get_date_updated(result):
+    def get_date_updated(self, result):
         dateupdated = result.xpath('//ns0:header/ns0:datestamp/node()', namespaces=NAMESPACES)[0]
         date_updated = parse(dateupdated).isoformat()
         return copy_to_unicode(date_updated)
+
+oai_thing = OAIHarvester()
+
