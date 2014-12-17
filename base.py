@@ -40,6 +40,19 @@ class OAIHarvester(BaseHarvester):
 
     RESUMPTION = '&resumptionToken='
 
+    DEFAULT_ENCODING = 'UTF-8'
+
+    record_encoding = None
+
+    def copy_to_unicode(self, element):
+
+        encoding = self.record_encoding or self.DEFAULT_ENCODING
+        element = ''.join(element)
+        if isinstance(element, unicode):
+            return element
+        else:
+            return unicode(element, encoding=encoding)
+
     def harvest(self, name, inst_url, days_back):
 
         start_date = str(date.today() - timedelta(days_back))
@@ -49,7 +62,20 @@ class OAIHarvester(BaseHarvester):
             self.META_PREFIX_DATE.format(start_date)
 
         records = self.get_records(initial_request_url, start_date)
-        return records
+
+        rawdoc_list = []
+        for record in records:
+            doc_id = record.xpath('ns0:header/ns0:identifier', namespaces=self.NAMESPACES)[0].text
+            record = etree.tostring(record, encoding=self.record_encoding)
+            rawdoc_list.append(RawDocument({
+                'doc': record,
+                'source': name,
+                'docID': self.copy_to_unicode(doc_id),
+                'filetype': 'xml'
+            }))
+
+        import pdb; pdb.set_trace()
+        return rawdoc_list
 
     def get_records(self, url, start_date, resump_token=''):
 
@@ -144,6 +170,6 @@ class OAIHarvester(BaseHarvester):
 oai_thing = OAIHarvester()
 
 harvested = oai_thing.harvest(
-                        name = 'texas', 
-                        url = 'http://digital.library.txstate.edu/oai/', 
-                        days_back = 15)
+                    name='texas',
+                    inst_url='http://digital.library.txstate.edu/oai/',
+                    days_back=15)
