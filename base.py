@@ -18,7 +18,10 @@ from scrapi.linter.document import RawDocument, NormalizedDocument
 
 class BaseHarvester(object):
 
-    def harvest(self, url, days_back=1, **kwargs):
+    def harvest(self, name, url, days_back=1, **kwargs):
+        pass
+
+    def get_records(self, url):
         pass
 
     def normalize(self, raw_doc, **kwargs):
@@ -28,23 +31,42 @@ class BaseHarvester(object):
 class OAIHarvester(BaseHarvester):
 
     NAMESPACES = {'dc': 'http://purl.org/dc/elements/1.1/',
-                    'oai_dc': 'http://www.openarchives.org/OAI/2.0/',
-                    'ns0': 'http://www.openarchives.org/OAI/2.0/'}
+                  'oai_dc': 'http://www.openarchives.org/OAI/2.0/',
+                  'ns0': 'http://www.openarchives.org/OAI/2.0/'}
 
-    def get_records(self, url):
-        data = requests.get(url)
-        doc = etree.XML(data.content)
-        records = doc.xpath('//ns0:record', namespaces=NAMESPACES)
-        token = doc.xpath('//ns0:resumptionToken/node()', namespaces=NAMESPACES)
+    RECORDS_URL = 'request?verb=ListRecords'
 
-        if len(token) == 1:
-            time.sleep(0.5)
-            base_url = OAI_DC_BASE_URL + '&resumptionToken='
-            url = base_url + token[0]
-            records += get_records(url)
+    META_PREFIX_DATE = '&metadataPrefix=oai_dc&from={}'
 
+    RESUMPTION = '&resumptionToken='
+
+    def harvest(self, name, inst_url, days_back):
+
+        start_date = str(date.today() - timedelta(days_back))
+
+        records_url = inst_url + self.RECORDS_URL
+        initial_request_url = records_url + \
+            self.META_PREFIX_DATE.format(start_date)
+
+        records = self.get_records(initial_request_url, start_date)
         return records
 
+    def get_records(self, url, start_date, resump_token=''):
+
+        data = requests.get(url)
+        doc = etree.XML(data.content)
+        records = doc.xpath('//ns0:record', namespaces=self.NAMESPACES)
+        token = doc.xpath(
+            '//ns0:resumptionToken/node()', namespaces=self.NAMESPACES)
+        if len(token) == 1:
+            time.sleep(0.5)
+            base_url = url.replace(
+                self.META_PREFIX_DATE.format(start_date), '')
+            base_url = base_url.replace(self.RESUMPTION + resump_token, '')
+            url = base_url + self.RESUMPTION + token[0]
+            records += self.get_records(url, start_date, resump_token=token[0])
+
+        return records
 
     def getcontributors(self, result):
         ''' this grabs all of the fields marked contributors
@@ -73,15 +95,14 @@ class OAIHarvester(BaseHarvester):
 
         return contributor_list
 
-
     def gettags(self, result):
         tags = result.xpath('//dc:subject/node()', namespaces=NAMESPACES) or []
         return [copy_to_unicode(tag.lower()) for tag in tags]
 
-
     def get_ids(self, result, doc):
         serviceID = doc.get('docID')
-        identifiers = result.xpath('//dc:identifier/node()', namespaces=NAMESPACES)
+        identifiers = result.xpath(
+            '//dc:identifier/node()', namespaces=NAMESPACES)
         url = ''
         doi = ''
         for item in identifiers:
@@ -96,28 +117,33 @@ class OAIHarvester(BaseHarvester):
 
         return {'serviceID': serviceID, 'url': copy_to_unicode(url), 'doi': copy_to_unicode(doi)}
 
-
     def get_properties(self, result, property_list):
         ''' kwargs can be all of the properties in your particular
         OAI harvester that does not fit into the standard schema '''
 
         properties = {}
         for item in property_list:
-            properties.item = (result.xpath('//dc:{}/node()'.format(item), namespaces=NAMESPACES) or [''])[0]
+            properties.item = (
+                result.xpath('//dc:{}/node()'.format(item), namespaces=NAMESPACES) or [''])[0]
 
         return properties
 
-
     def get_date_created(self, result):
-        dates = (result.xpath('//dc:date/node()', namespaces=NAMESPACES) or [''])
+        dates = (
+            result.xpath('//dc:date/node()', namespaces=NAMESPACES) or [''])
         date = copy_to_unicode(dates[0])
         return date
 
-
     def get_date_updated(self, result):
-        dateupdated = result.xpath('//ns0:header/ns0:datestamp/node()', namespaces=NAMESPACES)[0]
+        dateupdated = result.xpath(
+            '//ns0:header/ns0:datestamp/node()', namespaces=NAMESPACES)[0]
         date_updated = parse(dateupdated).isoformat()
         return copy_to_unicode(date_updated)
 
+
 oai_thing = OAIHarvester()
 
+harvested = oai_thing.harvest(
+                        name = 'texas', 
+                        url = 'http://digital.library.txstate.edu/oai/', 
+                        days_back = 15)
