@@ -7,9 +7,7 @@ from dateutil.parser import parse
 from datetime import date, timedelta, datetime
 
 import requests
-
 from lxml import etree
-
 from nameparser import HumanName
 
 from scrapi.linter import lint
@@ -69,7 +67,8 @@ class OAIHarvester(BaseHarvester):
 
         rawdoc_list = []
         for record in records:
-            doc_id = record.xpath('ns0:header/ns0:identifier', namespaces=self.NAMESPACES)[0].text
+            doc_id = record.xpath(
+                'ns0:header/ns0:identifier', namespaces=self.NAMESPACES)[0].text
             record = etree.tostring(record, encoding=self.record_encoding)
             rawdoc_list.append(RawDocument({
                 'doc': record,
@@ -134,7 +133,7 @@ class OAIHarvester(BaseHarvester):
             '//dc:identifier/node()', namespaces=self.NAMESPACES)
         url = ''
         doi = ''
-        for item in identifiers: 
+        for item in identifiers:
             if 'doi' in item or 'DOI' in item:
                 doi = item
                 doi = doi.replace('doi:', '')
@@ -152,7 +151,8 @@ class OAIHarvester(BaseHarvester):
 
         properties = {}
         for item in property_list:
-            prop = (result.xpath('//dc:{}/node()'.format(item), namespaces=self.NAMESPACES) or [''])
+            prop = (
+                result.xpath('//dc:{}/node()'.format(item), namespaces=self.NAMESPACES) or [''])
 
             if len(prop) > 1:
                 properties[item] = prop
@@ -174,11 +174,13 @@ class OAIHarvester(BaseHarvester):
         return self.copy_to_unicode(date_updated)
 
     def get_title(self, result):
-        title = result.xpath('//dc:title/node()', namespaces=self.NAMESPACES)[0]
+        title = result.xpath(
+            '//dc:title/node()', namespaces=self.NAMESPACES)[0]
         return self.copy_to_unicode(title)
 
     def get_description(self, result):
-        description = result.xpath('//dc:description/node()', namespaces=self.NAMESPACES)[0]
+        description = result.xpath(
+            '//dc:description/node()', namespaces=self.NAMESPACES)[0]
         return self.copy_to_unicode(description)
 
     def normalize(self, raw_doc, property_list):
@@ -201,24 +203,19 @@ class OAIHarvester(BaseHarvester):
         return NormalizedDocument(payload)
 
 
-texas_harvester = OAIHarvester('texas', 'http://digital.library.txstate.edu/oai/')
+texas_harvester = OAIHarvester(
+    'texas', 'http://digital.library.txstate.edu/oai/')
 texas_harvested = texas_harvester.harvest(days_back=15)
 texas_normed = texas_harvester.normalize(
-                    raw_doc = texas_harvested[0],
-                    property_list = ['date', 'creator', 'language']
-                )
+    raw_doc=texas_harvested[0],
+    property_list=['date', 'creator', 'language']
+)
 
 
 mit_harvester = OAIHarvester('mit', 'http://dspace.mit.edu/oai/')
 mit_harvested = mit_harvester.harvest(days_back=2)
 mit_normed = mit_harvester.normalize(
-                raw_doc = mit_harvested[0],
-                property_list = ['identifier', 'type', 'source', 'language', 'relation','rights']
-            )
-
-
-
-
-
-
-
+    raw_doc=mit_harvested[0],
+    property_list=[
+        'identifier', 'type', 'source', 'language', 'relation', 'rights']
+)
