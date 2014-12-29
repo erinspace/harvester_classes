@@ -125,7 +125,14 @@ class OAIHarvester(BaseHarvester):
 
     def get_tags(self, result):
         tags = result.xpath('//dc:subject/node()', namespaces=self.NAMESPACES)
-        return [self.copy_to_unicode(tag.lower()) for tag in tags]
+        
+        for tag in tags:
+            if ', ' in tag:
+                tags.remove(tag)
+                tags += tag.split(',')
+
+        return [self.copy_to_unicode(tag.lower().strip()) for tag in tags]
+
 
     def get_ids(self, result, doc):
         serviceID = doc.get('docID')
