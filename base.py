@@ -57,7 +57,7 @@ class OAIHarvester(BaseHarvester):
 
     def harvest(self, days_back):
 
-        start_date = str(date.today() - timedelta(days_back))
+        start_date = str(date.today() - timedelta(int(days_back)))
 
         records_url = self.base_url + self.RECORDS_URL
         initial_request_url = records_url + \
