@@ -186,8 +186,7 @@ class OAIHarvester(BaseHarvester):
         return self.copy_to_unicode(title)
 
     def get_description(self, result):
-        description = result.xpath(
-            '//dc:description/node()', namespaces=self.NAMESPACES)[0]
+        description = (result.xpath('//dc:description/node()', namespaces=self.NAMESPACES) or [''])[0]
         return self.copy_to_unicode(description)
 
     def normalize(self, raw_doc, property_list):
