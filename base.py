@@ -109,17 +109,18 @@ class OAIHarvester(BaseHarvester):
 
         contributor_list = []
         for person in all_contributors:
-            name = HumanName(person)
-            contributor = {
-                'prefix': name.title,
-                'given': name.first,
-                'middle': name.middle,
-                'family': name.last,
-                'suffix': name.suffix,
-                'email': '',
-                'ORCID': ''
-            }
-            contributor_list.append(contributor)
+            if person:
+                name = HumanName(person)
+                contributor = {
+                    'prefix': name.title,
+                    'given': name.first,
+                    'middle': name.middle,
+                    'family': name.last,
+                    'suffix': name.suffix,
+                    'email': '',
+                    'ORCID': ''
+                }
+                contributor_list.append(contributor)
 
         return contributor_list
 
